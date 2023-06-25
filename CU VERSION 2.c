@@ -9,7 +9,7 @@
 #define HLT PORTC2 // OUTPUT HALT
 #define PCO PORTC3 // OUTPUT COUNTER OUT
 #define IRO PORTC4 // OUTPUT INSTRUCTION REGISTER OUT
-#define IRI PORTC5 // OUPUT INSTRUCTION REGISTER IN
+#define IRI PORTC5 // OUPUT INSTRUCTION RESGISTER IN
 #define PCD PORTC6 // OUTPUT COUNTER DISABLE
 #define PCI PORTC7 // OUTPUT COUNTER IN
 #define RAI PORTB0 // OUTPUT REGISTER A ENABLE
@@ -39,24 +39,33 @@ int value = 0;
 void setup();
 void read_inst();
 void read_step();
+void reset_pins();
 
 int main() {
 	unsigned int valorSS = 0;
 	setup();
 	while(1) {
-	(value != -1 & value > 1) && 
+		read_step();
+		(value != -1 & value > 1 & stepAfterFetch == 1) && 
 		(read_inst(),
+		(PORTC = answersA[value]),
+		(valorSS = (PORTB >> 3) & 1), reset_pins(),
+		(PORTB |= answersB[value]),
+		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
+		);
+		(value != -1 & value > 1 & stepAfterFetch == 0) &&
+		(read_inst(),
+		(PORTC = answersA[value]),
 		(valorSS = (PORTB >> 3) & 1),
-		(PORTB = answersB[value]),
-		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3),
-		(PORTC = answersA[value])
+		(PORTB |= answersB[value]),
+		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
 		);
 		(value != -1 & value <= 1) &&
-		(
+		(reset_pins(),
+		(PORTC = answersA[value]),
 		(valorSS = (PORTB >> 3) & 1),
-		(PORTB = answersB[value]),
-		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3),
-		(PORTC = answersA[value])
+		(PORTB |= answersB[value]),
+		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
 		);
 	}
 }
@@ -64,7 +73,7 @@ void setup() {
 	DDRA = 0x00;
 	PORTA = 0xFF;
 	DDRC = 0xFF; // OUTPUTS
-	PORTC = 0x44; // OUTPUTS
+	PORTC = 0x00; // OUTPUTS
 	DDRB = 0x0F; //
 	PORTB = 0xF0; // INPUTS PULL UP RESISTORS
 	DDRD = 0x00; // INPUTS
@@ -105,4 +114,7 @@ void read_step() { // read Step
 		} else {
 		value = 0;
 	}
+}
+void reset_pins() {
+	PORTB &= ~(1<<RAI) & ~(1<<RBI);
 }
