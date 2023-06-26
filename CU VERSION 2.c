@@ -25,19 +25,21 @@
 #define I2 PORTD2 // INPUT INSTRUCTION BIT2 //
 #define I3 PORTD3 // INPUT INSTRUCTION BIT3 //
 #define FN PORTA1 // INPUT NEGATIVE
+#define RW PORTA7
 
-#define N_Outputs 14
+#define N_Outputs 20
 int answersA[N_Outputs] = {
-	74, 97, 208, 74, 16, 64, 18, 65, 68, 68, 208, 64, 0, 64
+	74, 97, 208, 74, 16, 64, 18, 65, 68, 68, 208, 64, 0, 64, 0b00010010, 64, 0b00010010, 65, 0b00010010, 65
 };
 int answersB[N_Outputs] = {
-	0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 0, 0
+	0, 0, 0, 0, 1, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2, 0, 1
 };
+int step = 0;
 int stepAfterFetch = 0;
 int ss = 0;
 int value = 0;
 void setup();
-void read_inst();
+int read_inst();
 void read_step();
 void reset_pins();
 
@@ -46,32 +48,37 @@ int main() {
 	setup();
 	while(1) {
 		read_step();
-		(value != -1 & value > 1 & stepAfterFetch == 1) && 
-		(read_inst(),
-		(PORTC = answersA[value]),
+		(step != -1 & step > 1 & stepAfterFetch == 1 & read_inst() == 1) && 
+		((PORTC = answersA[value]),
 		(valorSS = (PORTB >> 3) & 1), reset_pins(),
 		(PORTB |= answersB[value]),
-		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
+		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5) || (value == 16) || (value == 17)) || (value == 18) || (value == 19))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3),
+		(PORTA |= (1<<RW))
 		);
-		(value != -1 & value > 1 & stepAfterFetch == 0) &&
-		(read_inst(),
-		(PORTC = answersA[value]),
+		(step != -1 & step > 1 & stepAfterFetch == 1 & read_inst() == 0) &&
+		((PORTC = answersA[value]),
+		(valorSS = (PORTB >> 3) & 1), reset_pins(),
+		(PORTB |= answersB[value]),
+		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5) || (value == 16) || (value == 17)) || (value == 18) || (value == 19))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
+		);
+		(step != -1 & step > 1 & stepAfterFetch == 0 & (read_inst() == 0 || read_inst() == 1)) &&
+		((PORTC = answersA[value]),
 		(valorSS = (PORTB >> 3) & 1),
 		(PORTB |= answersB[value]),
-		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
+		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5) || (value == 16) || (value == 17)) || (value == 18) || (value == 19))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
 		);
-		(value != -1 & value <= 1) &&
-		(reset_pins(),
-		(PORTC = answersA[value]),
+		(step != -1 & step <= 1) &&
+		(PORTA &= ~(1<<RW), reset_pins(),
+		(PORTC = answersA[step]), 
 		(valorSS = (PORTB >> 3) & 1),
-		(PORTB |= answersB[value]),
-		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
+		(PORTB |= answersB[step]),
+		(PORTB |= (PORTB & ~(1 << PINB3)) | ((valorSS & !((value == 4) || (value == 5) || (value == 16) || (value == 17)) || (value == 18) || (value == 19))) || (!valorSS & ((value == 6) || (value == 7)))) << PINB3)
 		);
 	}
 }
 void setup() {
-	DDRA = 0x00;
-	PORTA = 0xFF;
+	DDRA = 0xF0;
+	PORTA = 0x0F;
 	DDRC = 0xFF; // OUTPUTS
 	PORTC = 0x00; // OUTPUTS
 	DDRB = 0x0F; //
@@ -79,42 +86,55 @@ void setup() {
 	DDRD = 0x00; // INPUTS
 	PORTD = 0x0F;
 }
-void read_inst(){ // read INSTRUCTION
+int read_inst(){ // read INSTRUCTION
 	if ((PIND & 0b00000110) == 0b00000110) { // HLT // HLT
 		value = 8 + stepAfterFetch;
+		return 0;
 		} else if ((PIND & 0b00000101) == 0b00000101) { // SUB
 		value = 6 + stepAfterFetch;
-		ss=1;
+		return 0;
 		} else if ((PIND & 0b00001100) == 0b00001100){  // JN
 		if (PINA & (1<<FN)) {
 			value = 10 + stepAfterFetch;
+			return 0;
 			} else {
 			value = 12 + stepAfterFetch;
+			return 0;
 		}
 		} else if ((PIND & 0b00000011) == 0b00000011) { // JMP
 		value = 2 + stepAfterFetch;
+		return 0;
 		} else if ((PIND & 0b00000100) == 0b00000100) { // LDI
 		value = 4 + stepAfterFetch;
-		ss=0;
-	}
+		return 0;
+		} else if ((PIND & 0b00001000) == 0b00001000) { // STB		// STORE DA ALU PARA B
+			value = 14 + stepAfterFetch;
+			return 1;
+		} else if ((PIND & 0b00000010) == 0b00000010) { // ADD		// ADD TO B
+			value = 16 + stepAfterFetch;
+			return 0;
+		} else if ((PIND & 0b00000001) == 0b00000001) { // LDA		// LOAD TO A
+			value = 18 + stepAfterFetch;
+			return 0;
+		}
 }
 void read_step() { // read Step
 	if ((PINB & (1<<S0)) && (PINB & (1<<S2))){ // 101 garbage
-		value = -1;
+		step = -1;
 		} else if ((PINB & (1<<S0)) && (PINB & (1<<S1))) { // 011
 		stepAfterFetch = 1;
-		value = 3;
+		step = 3;
 		} else if ((PINB & (1<<S0))) { // 001
-		value = 1;
+		step = 1;
 		} else if ((PINB & (1<<S1))) { // 010
 		stepAfterFetch = 0;
-		value = 2;
+		step = 2;
 		} else if ((PINB & (1<<S2))) { // 100 garbage
-		value = -1;
+		step = -1;
 		} else {
-		value = 0;
+		step = 0;
 	}
 }
 void reset_pins() {
-	PORTB &= ~(1<<RAI) & ~(1<<RBI);
+	PORTB &= ~((1<<RAI) | ~(1<<RBI));
 }
